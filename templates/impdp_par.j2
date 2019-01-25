@@ -1,0 +1,4 @@
+directory={{ db_config.dump_directory }}
+dumpfile={{ db_config.dump_file }}
+logfile={{ db_config.dump_directory }}:{{ db_config.impdp_log_file }}
+table_exists_action=TRUNCATE

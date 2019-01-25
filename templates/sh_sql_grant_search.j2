@@ -1,0 +1,56 @@
+#!/bin/bash
+#
+. {{ my_target.host.env_script }}
+
+sqlplus -s system/{{ system_pwd.stdout }} <<EOF
+--connect sys as sysdba
+set feedback off
+set lines 250
+set pages 0
+
+spool {{ my_target.host.run_directory }}/ans_grants_{{ stream }}.sql
+
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+prompt spool {{ my_target.host.run_directory }}/ans_grants_{{ stream }}.log
+
+{% if item.stream.grant_agi is defined %}
+{% for user in item.stream.users %}
+
+prompt prompt Grant privs from {{ user }} to AGI
+select 'grant select on '||owner||'.'||object_name||
+       ' to {{ item.stream.grant_agi }} with grant option;'
+  from dba_objects
+ where owner in ( '{{ user }}' )
+   and object_type in ( 'TABLE','VIEW' )
+ order by owner, object_type, object_name;
+
+{% endfor %}
+{% endif %}
+
+{% if item.stream.grant_wso is defined %}
+{% for user in item.stream.users %}
+
+prompt prompt Grant privs from {{ user }} to WSO
+select 'grant decode(object_type,'PACKAGE','execute','select') on '||owner||'.'||object_name||
+       ' to {{ item.stream.grant_wso }} with grant option;'
+  from dba_objects
+ where owner in ( '{{ user }}' )
+   and object_type in ( 'TABLE','VIEW','PACKAGE' )
+ order by owner, object_type, object_name;
+
+{% endfor %}
+{% endif %}
+prompt spool off
+
+{% endif %}
+{% endfor %}
+
+spool off
+
+set feed on
+set timing on
+
+EOF
+
+exit

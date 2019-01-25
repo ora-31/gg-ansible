@@ -1,0 +1,18 @@
+. ~/ogg.env
+cd $ORACLE_GG_HOME
+ggsci <<EOF
+info all
+
+{% if run_mode == 'safe' %}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif %}
+
+{% for item in streams %}
+{% if ( item.stream.prefix == stream ) %}
+register extract {{ item.stream.prefix }}{{ stream }} database
+add extract {{ item.stream.extr }}{{ item.stream.prefix }}, integrated tranlog, begin now
+add exttrail ./dirdat/{{ stream }}, extract {{ item.stream.extr }}{{ stream }}, megabytes {{ item.stream.megabytes }}
+start extract {{ item.stream.extr}}{{ stream }}
+{% endif %}
+{% endfor %}

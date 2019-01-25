@@ -1,0 +1,45 @@
+# #!/bin/bash
+# Kill source processes
+. ~/ogg.env
+. {{ my_source.host.env_script }}
+cd $ORACLE_GG_HOME
+./ggsci <<EOF
+info all
+
+{% if run_mode == 'safe' %}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif %}
+
+dblogin userid {{ my_source.gg_config.username }} password {{ my_source.gg_config.password }}
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+stop extract {{ item.stream.extract }}{{ item.stream.prefix }}
+delete extract {{ item.stream.extract }}{{ item.stream.prefix }}
+{% if item.stream.dpump %}
+stop extract {{ item.stream.dpump }}{{ item.stream.prefix }}
+delete extract {{ item.stream.dpump }}{{ item.stream.prefix }}
+{% endif %}
+unregister extract {{ item.stream.extract }}{{ item.stream.prefix }} database
+{% endif %}
+{% endfor %}
+
+exit
+
+rm ./dirdat/{{ stream }}*
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+rm ./dirrpt/{{ item.stream.extract }}{{ item.stream.prefix }}*.rpt
+rm ./dirchk/{{ item.stream.extract }}{{ item.stream.prefix }}*.cp*
+rm ./dirpcs/{{ item.stream.extract }}{{ item.stream.prefix }}*.pc*
+rm ./dirdmp/*{{ item.stream.extract }}{{ item.stream.prefix }}*.dmp
+{% if item.stream.dpump %}
+rm ./dirrpt/{{ item.stream.dpump }}{{ item.stream.prefix }}*.rpt
+rm ./dirchk/{{ item.stream.dpump }}{{ item.stream.prefix }}*.cp*
+rm ./dirpcs/{{ item.stream.dpump }}{{ item.stream.prefix }}*.pc*
+rm ./dirdmp/*{{ item.stream.dpump }}{{ item.stream.prefix }}*.dmp
+{% endif %}
+{% endif %}
+{% endfor %}
+exit
+

@@ -1,0 +1,18 @@
+{% for item in streams %}
+{% if ( item.stream.prefix == stream ) %}
+{% if ( item.stream.dpump is defined ) %}
+EXTRACT {{ item.stream.dpump }}{{ stream }}
+SETENV (ORACLE_HOME={{ source_oracle_gg_home.stdout }})
+USERID {{ my_source.gg_config.username }} PASSWORD {{ my_source.gg_config.password }}
+RMTHOST (( my_target.hostname }}, MGRPORT 7809
+RMTTRAIL ./dirdat/{{ stream }}
+
+-- MAPPINGS --
+{% if item.stream.users is defined %}
+{% for map in item.stream.users %}
+MAP {{ map }}.*, TARGET {{ map }}.*;
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endif %}
+{% endfor %}

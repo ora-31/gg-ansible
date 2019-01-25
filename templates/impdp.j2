@@ -1,0 +1,5 @@
+#!/bin/bash
+. ~/{{ dest_host_config.env_script }}
+
+impdp system/{{ system_pwd.stdout }} parfile=/tmp/impdp_{{ db_config.name }}.par
+

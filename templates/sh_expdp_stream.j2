@@ -1,0 +1,21 @@
+#!/bin/bash
+#
+# Exports all schema for a particular stream
+. {{ my_source.host.env_script }}
+
+SCN={{ current_scn.stdout| regex_replace('\n','') }}
+
+{% for item in streams %}
+{% if item.stream.prefix == stream %} 
+{% for user in item.stream.users %}
+expdp system/{{ system_pwd.stdout }} \
+ schemas={{ user }} \
+ directory={{ my_source.host.ora_dump_directory }} \
+ dumpfile=expdp_{{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.dmp \
+ logfile=expdp_{{ my_source.host.instance_name }}_{{ stream }}.log \
+ flashback_scn=$SCN
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+exit

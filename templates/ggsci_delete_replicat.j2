@@ -1,0 +1,30 @@
+#!/bin/bash
+# Stop and delete replicat processes
+. ~/ogg.env
+. {{ my_target.host.env_script }}
+cd $ORACLE_GG_HOME
+./ggsci <<EOF
+info all
+
+{% if run_mode == 'safe' %}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif %}
+
+dblogin userid {{ my_target.gg_config.username }} password {{ my_target.gg_config.password }}
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+stop replicat {{ item.stream.replicat }}{{ stream }}
+delete replicat {{ item.stream.replicat }}{{ stream }}
+{% endif %}
+{% endfor %}
+
+exit
+
+rm ./dirdat/{{ stream }}*
+{% for item in streams%}
+{% if item.stream.prefix == stream %}
+rm ./dirrpt/{{ item.stream.replicat }}{{ stream }}*.rpt
+{% endif %}
+{% endfor %}
+exit

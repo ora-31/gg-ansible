@@ -1,0 +1,40 @@
+#!/bin/ansible-playbook
+#
+# Script to create the Golden Gate User
+. ~/ogg.env
+. {{ my_source.host.env_script }}
+#
+# Change current directory to the GoldenGate Home directory
+cd $ORACLE_GG_HOME
+#
+#
+sqlplus /nolog <<EOF
+  -- Connect as SYSDBA
+  connect sys as sysdba
+  
+  spool /tmp/gg_create_user.log
+
+  -- Create GG User
+  create user {{ gg_config.username }} identified by {{ gg_config.password }} default tablespace {{ gg_config.default_tablespace }};
+
+  -- Grant roles and privileges
+  grant connect, resource, create session, alter session to {{ gg_config.username }}; 
+  grant select any dictionary, select any table,create table to {{ gg_config.username }}; 
+  grant alter any table to {{ gg_config.username }};  
+  grant execute on utl_file to {{ gg_config.username }}; 
+  grant flashback any table to {{ gg_config.username }}; 
+  grant execute on dbms_flashback to {{ gg_config.username }}; 
+  grant insert,update,delete on target.tcustmer to {{ gg_config.username }}; 
+  grant insert,update,delete on target.tcustord to {{ gg_config.username }}; 
+
+  -- Execute setup scripts
+  @marker_setup.sql 
+  @ddl_setup.sql 
+  @role_setup.sql 
+  @ddl_enable.sql 
+  @sequence.sql 
+
+  spool off
+
+<<EOF
+exit

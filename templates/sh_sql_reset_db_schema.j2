@@ -1,0 +1,54 @@
+#!/bin/bash
+#
+. {{ my_target.host.env_script }}
+cd {{ my_target.host.run_directory }}
+
+sqlplus -s system/{{ system_pwd.stdout }} <<EOF
+--connect sys as sysdba
+set feedback off
+set lines 250
+set pages 0
+
+spool sql_reset_db_schema_{{ stream }}.sql
+
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+prompt spool /tmp/ans_reset_{{ stream }}.log
+{% for user in item.stream.users %}
+
+
+prompt prompt Alter tables for {{ user }}
+select 'alter table '||owner||'.'|| table_name||' drop constraint '||constraint_name||';'
+  from dba_constraints
+ where owner in ( '{{ user }}' )
+   and constraint_type in ( 'P','R');
+
+prompt prompt Drop objects for {{ user }}
+select 'drop '||object_type||' '||owner||'.'||object_name||';'
+  from dba_objects
+ where owner in ( '{{ user }}' )
+ order by owner, object_name;
+
+{% endfor %}
+
+select 'purge recyclebin;'||chr(13)||chr(10)
+  from dual;
+
+prompt spool off
+
+{% endif %}
+{% endfor %}
+
+spool off
+
+set feed on
+set timing on
+
+@{{ my_target.host.run_directory }}/sql_reset_db_schema_{{ stream }}.sql
+purge recyclebin;
+
+EOF
+
+exit
+
+

@@ -1,0 +1,20 @@
+#!/bin/bash
+# Create GG source processes
+. ~/ogg.env
+. {{ my_target.host.env_script }}
+cd $ORACLE_GG_HOME
+./ggsci <<EOF
+info all
+
+{% if run_mode == 'safe' %}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif %}
+
+{% for item in streams %}
+start extract {{ item.stream.extract }}{{ stream }}
+{% if item.stream.dpump is defined %}
+start extract {{ item.stream.dpump }}{{ stream }}
+{% endif %}
+{% endfor %}
+

@@ -1,0 +1,28 @@
+{% for item in streams %}
+{% if ( item.stream.prefix == stream ) %}
+EXTRACT {{ item.stream.extract }}{{ stream }}
+SETENV (ORACLE_HOME={{ source_oracle_gg_home.stdout }})
+USERID {{ my_source.gg_config.username }} PASSWORD {{ my_source.gg_config.password }}
+EXTTRAIL ./dirdat/{{ stream }}
+DDL INCLUDE ALL
+DDLOPTIONS REPORT
+UPDATERECORDFORMAT COMPACT
+
+-- MAPPINGS --
+{% if item.stream.users is defined %}
+{% for map in item.stream.users %}
+MAP {{ map }}.*, TARGET {{ map }}.*;
+{% endfor %}
+{% endif %}
+
+-- MAP EXCLUDES --
+{% if item.stream.map_excludes is defined %}
+{% for map in item.stream.map_excludes %}
+MAPEXCLUDE {{ map }}
+{% endfor %}
+{% endif %}
+
+{% endif %}
+{% endfor %}
+
+

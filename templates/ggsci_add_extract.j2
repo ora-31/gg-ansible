@@ -1,0 +1,40 @@
+#!/bin/bash
+# Create GG source processes
+. ~/ogg.env
+. {{ my_source.host.env_script }}
+cd $ORACLE_GG_HOME
+./ggsci <<EOF
+info all
+{% if run_mode == 'safe' %}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif %}
+
+-- Login into the source database
+dblogin userid {{ my_source.gg_config.username }} password {{ my_source.gg_config.password }}
+
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+
+-- Adding SchemaTranData to all users in the stream
+{% for user in item.stream.users %}
+ADD SCHEMATRANDATA {{ user }} ALLCOLS
+{% endfor %}
+
+-- Register the extract
+register extract {{ item.stream.extract }}{{ stream }} database
+
+add extract {{ item.stream.extract }}{{ stream }}, integrated tranlog, begin now
+add exttrail ./dirdat/{{ stream }}, extract {{ item.stream.extract }}{{ stream }}, megabytes {{ item.stream.megabytes }}
+start extract {{ item.stream.extract }}{{ stream }}
+
+{% if item.stream.dpump %}
+-- Register the pump extract
+add extract {{ item.stream.dpump }}{{ stream }}, exttrailsource ./dirdat/{{ stream }}
+add rmttrail ./dirdat/{{ stream }}, extract {{ item.stream.dpump }}{{ stream }}, megabytes {{ item.stream.megabytes }}
+{% endif %}
+{% endif %}
+{% endfor %}
+
+exit
+EOF

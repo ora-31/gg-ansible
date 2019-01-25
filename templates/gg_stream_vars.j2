@@ -1,0 +1,17 @@
+{% if ( stream ) %}
+{% for item in streams %}
+{% if ( item.stream.prefix == stream ) %}
+echo "{ \"stream\": {"
+{% if ( item.stream.extract ) %}
+echo " \"extract\":\"{{ item.stream.extract }}{{ stream }}\", "
+{% endif %}
+{% if ( item.stream.dpump ) %}
+echo " \"dpump\":\"{{ item.stream.dpump }}{{ stream }}\", "
+{% endif %}
+{% if ( item.stream.replicat ) %}
+echo " \"replicat\":\"{{ item.stream.replicat }}{{ stream }}\" "
+{% endif %}
+echo "} }"
+{% endif %}
+{% endfor %}
+{% endif %}

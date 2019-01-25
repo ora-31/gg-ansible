@@ -1,0 +1,20 @@
+#!/bin/bash
+# Create GG source processes
+. ~/ogg.env
+. {{ my_target.host.env_script }}
+cd $ORACLE_GG_HOME
+./ggsci <<EOF
+info all
+
+{% if run_mode == 'safe' %}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif %}
+
+dblogin userid {{ my_target.gg_config.username }} password {{ my_target.gg_config.password }}
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+add replicat {{ item.stream.replicat }}{{ stream }}, integrated, exttrail ./dirdat/{{ stream }}
+{% endif %}
+{% endfor %}
+EOF

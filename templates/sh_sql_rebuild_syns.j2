@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+. {{ my_target.host.env_script }}
+
+sqlplus -s system/{{ system_pwd.stdout }} <<EOF
+--connect sys as sysdba
+set feedback off
+set lines 250
+set pages 0
+
+spool {{ my_target.host.run_directory }}/ans_rebuild_syns_{{ stream }}.sql
+
+{% for item in streams %}
+{% if item.stream.prefix == stream %}
+prompt spool /tmp/ans_rebuild_syns_{{ stream }}.log
+{% for user in item.stream.users %}
+
+
+prompt prompt Rebuild synonyms for {{ user }}
+select 'drop synonym '||sy.owner||'.'||sy.synonym_name||';'||chr(10)||
+       'create synonym '||sy.owner||'.'||sy.synonym_name||' for '||sy.table_owner||'.'||sy.table_name
+  from dba_synonyms sy
+     , dba_objects  ob
+ where sy.owner in ( '{{ user }}' )
+   and sy.owner = ob.owner
+   and sy.synonym_name = ob.object_name
+   and ob.status = 'INVALID'
+   and ob.object_type = 'SYNONYM';
+
+{% endfor %}
+
+prompt spool off
+
+{% endif %}
+{% endfor %}
+
+spool off
+
+set feed on
+set timing on
+@@/tmp/ans_rebuild_syns_{{ stream }}.sql
+
+EOF
+
+exit
+
+

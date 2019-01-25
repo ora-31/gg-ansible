@@ -1,0 +1,44 @@
+{% for item in streams %}
+{% if ( item.stream.prefix == stream ) %}
+REPLICAT {{ item.stream.replicat }}{{ stream }}
+--NODISCARDFILE
+DISCARDFILE ./dirdsc/{{ item.stream.replicat }}{{ stream }}.dsc
+SETENV (ORACLE_HOME={{ target_oracle_gg_home.stdout }})
+USERID {{ my_target.gg_config.username }} PASSWORD {{ my_target.gg_config.password }}
+ASSUMETARGETDEFS
+HANDLECOLLISIONS
+DDL INCLUDE ALL
+--
+DBOPTIONS INTEGRATEDPARAMS (_DATA_LAYER N)
+--REPERROR (2291, DISCARD)
+--DDLERROR 942 IGNORE     -- table to drop does not exist (BIN table for example)
+--DDLERROR 1720 IGNORE    -- grant option does not exist
+--DDLERROR 1917 IGNORE    -- user or role does not exist
+--DDLERROR 2430 IGNORE    -- cannot enable constraint
+--DDLERROR 2431 IGNORE    -- cannot disable constraint
+--DDLERROR 4063 IGNORE    -- view has errors and cannot recreate
+--DDLERROR 23292 IGNORE   -- cannot rename constraint
+{% if item.stream.ddlerrors is defined %}
+{% for ddlerror in item.stream.ddlerrors %}
+DDLERROR {{ ddlerror }}
+{% endfor %}
+{% endif %}
+
+-- MAPPINGS --
+{% if item.stream.users is defined %}
+{% for map in item.stream.users %}
+MAP {{ map }}.*, TARGET {{ map }}.*;
+{% endfor %}
+{% endif %}
+
+-- MAP EXCLUDES --
+{% if item.stream.map_excludes is defined %}
+{% for map in item.stream.map_excludes %}
+MAPEXCLUDE {{ map }}
+{% endfor %}
+{% endif %}
+
+{% endif %}
+{% endfor %}
+
+
