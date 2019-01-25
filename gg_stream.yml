@@ -21,6 +21,8 @@
    #                    and the --limit parameter to only select the two servers
    #                    necessary (source and target)
    #
+   # Requirements
+   # ------------
    # streams.yml        This file must contain basic GG information and schemas
    #                    to replicate
    #
@@ -48,6 +50,10 @@
    #                    prefix. You must have a corresponding entry in the
    #                    streams.yml configuration file with all information
    #                    about the stream to create.
+   #                    source instance
+   #
+   # <target>.yml       This file must contain basic information about the
+   #                    target instance
    #
    # Optional parameters
    # -------------------
@@ -66,7 +72,7 @@
    remote_user: oracle
    become: yes
    become_user: oracle
-   
+   #
    # Global stream definition file
    vars_files:
      - vars/streams.yml
@@ -105,7 +111,7 @@
      - name: Show current stream to setup
        debug: 
          msg: "Current stream is {{ stream }}"
- 
+
      # Set the env prefix variable for the correct setup
      #- set_fact:
      #    env_path: gg_config.agldev.env{{ env }}
@@ -130,7 +136,7 @@
          file: "{{ target }}.yml"
          name: my_target
      - debug: var=my_target
-      
+
      # =========================================================================
      # Check to make sure the hostnames of the source and target are set
      # The playbook will only execute on either the source or target hosts
@@ -142,7 +148,7 @@
        when: my_source.host.hostname is not defined
 
      - name: Show source hostname
-       debug: 
+       debug:
          msg: "Source hostname is {{ ansible_hostname }}"
        when: ansible_hostname == my_source.host.hostname
 
@@ -155,7 +161,7 @@
        debug: 
          msg: "Target hostname is {{ ansible_hostname }}"
        when: ansible_hostname == my_target.host.hostname
- 
+
      - debug: var=ansible_user
 
      # =========================================================================
@@ -367,7 +373,7 @@
      - name: Testing run_mode
        debug:
          msg: "Testing run_mode"
-       when: 
+       when:
          - run_mode == 'safe'
          - ansible_hostname == my_target.host.hostname
        failed_when: run_mode == 'prod'
@@ -483,7 +489,6 @@
          mode: 0700
        when: ansible_hostname == my_target.host.hostname
 
-     
      - fail:
          msg: "Exiting before running any of the scripts..."
        when: True == True
