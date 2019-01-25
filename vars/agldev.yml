@@ -1,0 +1,13 @@
+---
+host:
+  hostname:            dca-hn-db6
+  instance_name:       agldev
+  env_script:          ~/agldev.env
+  dump_directory:      /home/oracle/dumps
+  ora_dump_directory:  DBA_DIR
+  run_directory:       /tmp
+
+gg_config:
+  username:            gg_admin
+  password:            gg_admin
+...

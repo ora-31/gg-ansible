@@ -1,0 +1,13 @@
+---
+host:
+  hostname:            dev-db01.interbal.example.com
+  instance_name:       SRCDB
+  env_script:          ~/oradev.env
+  dump_directory:      /home/oracle/dumps
+  ora_dump_directory:  DBA_DIR
+  run_directory:       /tmp
+
+gg_config:
+  username:            gg_admin
+  password:            gg_admin
+...

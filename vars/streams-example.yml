@@ -1,0 +1,32 @@
+---
+  destroy: No
+  streams:
+    - stream:
+        extract:   EXTR
+        dpump:     DPUMP
+        replicat:  REPL
+        prefix:    OT
+        megabytes: 256
+        users:
+          - DBA_TOOLS
+          - ISSCOME
+          - OPTUM
+          - ORACLE_OCM
+          - SONAR
+          - TESTJOB
+    - stream:
+        prefix:    "01"
+        extract:   EXTR
+        dpump:     DPUMP
+        replicat:  REPL
+        megabytes: 128
+        users:
+          - ENV01_OBJ
+          - ENV01_USR
+          - ENV01_SYS
+        ddlerrors:
+          - 942 IGNORE
+          - 1720 IGNORE
+        map_excludes:
+          - ENV01_OBJ.TABLE_TO_EXCLUDE
+...
