@@ -56,6 +56,9 @@
    # destroy=True       Specify to remove existing replication and target
    #                    objects
    #
+   # Revisions
+   # ---------
+   #
    # ***************************************************************************
 -
    # Hosts and user account to execute the steps
