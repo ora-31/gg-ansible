@@ -1,30 +1,35 @@
 #!/bin/ansible-playbook
 ---
    # ***************************************************************************
-   # Ansible Playbook to setup a GoldenGate replication stream
-   # Author:            Stephane L Come (stephane@dca.ca.gov, scome98@gmail.com)
+   # Ansible Playbook to setup a unidirectional GoldenGate replication stream
+   # Author:            Stephane L Come (stephane.come@dca.ca.gov, scome98@gmail.com)
    # Date:              January 2019
-   # Name:              gg_stream.yml
+   # Name:              gg_stream2.yml
    #
    # This Playbook is used to create a new GoldenGate replication stream
-   # (Extract+Replicat) between a source instance (Oracle) and target instance
-   # (Oracle), using a list of schema specified in the streams.yml configuration
-   # file.
+   # (Extract+Replicat) between a source instance (Oracle) and a target instance
+   # (Oracle only). It will save you from performing all the steps manually.
+   #
+   # This script can be used for direct replication or using a hub architecture
+   # with a middle host running GoldenGate.
+   #
+   # This Playbook relies on a centralized credentialstore to access the remote
+   # GoldenGate instances. The name/password of each remote instance is saved
+   # in the credentialstore.
    #
    # To use the Playbook, you will need to upate various configuration files to
-   # match your own environment and the streams to setup.
+   # match your own environment and the various streams to setup.
    #
    # Requirements
    # ------------
    # oracle_hosts       This file contains the various database hosts on which
-   #                    the databases and GoldenGate is installed. Use groups
-   #                    and the --limit parameter to only select the two servers
-   #                    necessary (source and target)
+   #                    the databases and GoldenGate is installed. Define groups
+   #                    with the --limit parameter to only select the two servers
+   #                    necessary (source and target), or three servers in a hub
+   #                    configuration.
    #
-   # Requirements
-   # ------------
    # streams.yml        This file must contain basic GG information and schemas
-   #                    to replicate
+   #                    to replicate.
    #
    # <source>.yml       This file must contain basic information about the
    #                    source instance. Replicate the <source> name with the
@@ -46,14 +51,10 @@
    #                    correspondig <target>.yml file
    #
    # stream=xx          Specify a 2 character (alphanumeric) for the stream
-   #                    prefix. GoldenGate only allows for a 2 characters
-   #                    prefix. You must have a corresponding entry in the
+   #                    suffix. GoldenGate only allows for a 2 characters
+   #                    suffix. You must have a corresponding entry in the
    #                    streams.yml configuration file with all information
    #                    about the stream to create.
-   #                    source instance
-   #
-   # <target>.yml       This file must contain basic information about the
-   #                    target instance
    #
    # Optional parameters
    # -------------------
@@ -62,8 +63,13 @@
    # destroy=True       Specify to remove existing replication and target
    #                    objects
    #
-   # Revisions
-   # ---------
+   # Example
+   # -------
+   # $ ./gg_stream2.yml -i /etc/ansible/oracle_hosts \
+   #   --limit "sandbox" \
+   #   --extra-vars "stream=SC source=brztest2 target=cogcss \
+   #   debug_mode=true remap_tablespace=TBSP_BRZTEST_ENV21_VR:TBSP_BATMAN \
+   #   destroy=true"
    #
    # ***************************************************************************
 -
@@ -72,14 +78,17 @@
    remote_user: oracle
    become: yes
    become_user: oracle
-   #
-   # Global stream definition file
+   
+   # Global stream definition file. This file must include all the information
+   # necessary to setup a stream
    vars_files:
      - vars/streams.yml
 
    vars:
-     # The 'safe' run_mode will not make any permanent changes.
-     #   Any other value will make permanent changes to the environment.
+     # The 'safe' run_mode will not make any permanent changes. The playbook will
+     # generate all the scripts but not execute them. Use this option when setting
+     # up a new environment and streams.
+     # Any other value will make permanent changes to the environment.
      #- run_mode: safe  
      - run_mode: testing
      - remap_tablespace: USERS:USERS
@@ -88,21 +97,24 @@
 
      # =========================================================================
      # Parameter pre-check. This section will fail if the correct parameters are
-     # not defined. Include any pre-checks or validations in this section.
+     # not defined. Include any additional pre-checks or validations in this 
+     # section to match your environment.
      # =========================================================================
      #
      # Fail if the stream parameter stream=nn is not set. A two digit variable
      # (nn) will setup the replication of a breeze env.
-     # A stream value of "OT" will replicate all other schema (non-breeze)
+     # A stream value of "OT" will replicate all other schema (non-Breeze)
      - fail:
          msg: "No stream specified. Add --extra-vars='stream=<env>'"
        when: stream is not defined
 
+     # Fail if the source instance is not provided on the command line
      - fail:
          msg: "Variable source is not defined in the --extra-vars parameter"
        when: source is not defined
      - debug: var=source
 
+     # Fail if the target instance is not provided on the command line
      - fail:
          msg: "Variable target is not defined in the --extra-vars parameter"
        when: target is not defined
@@ -111,8 +123,8 @@
      - name: Show current stream to setup
        debug: 
          msg: "Current stream is {{ stream }}"
-
-     # Set the env prefix variable for the correct setup
+ 
+     # Set the env suffix variable for the correct setup
      #- set_fact:
      #    env_path: gg_config.agldev.env{{ env }}
 
@@ -136,21 +148,27 @@
          file: "{{ target }}.yml"
          name: my_target
      - debug: var=my_target
-
+      
      # =========================================================================
      # Check to make sure the hostnames of the source and target are set
-     # The playbook will only execute on either the source or target hosts
+     # The playbook will only execute on the source, the target or hub hosts
      # =========================================================================
-     #
+      
      # Make sure the source hostname is defined or fail
      - fail:
          msg: "No source host found. Add --extra-vars='source=<db_instance>'"
        when: my_source.host.hostname is not defined
 
      - name: Show source hostname
-       debug:
+       debug: 
          msg: "Source hostname is {{ ansible_hostname }}"
        when: ansible_hostname == my_source.host.hostname
+
+     - name: Set the Source GG server
+       set_fact:
+         gg_source_server: "{{ my_source.gg_config.server }}"
+       when: my_source.gg_config.server is defined
+     - debug: var=gg_source_server
 
      # Make sure the target hostname is defined or fail
      - fail:
@@ -161,21 +179,26 @@
        debug: 
          msg: "Target hostname is {{ ansible_hostname }}"
        when: ansible_hostname == my_target.host.hostname
-
      - debug: var=ansible_user
 
+     - name: Set the Target GG server
+       set_fact:
+         gg_target_server: "{{ my_target.gg_config.server }}"
+       when: my_target.gg_config.server is defined
+     - debug: var=gg_target_server
+
      # =========================================================================
-     # Create a directory to hold all scripts/files for this run
+     # Create a new /tmp sub-directory to hold all scripts/files for this run
      #
      # If we are in debug mode, the directory is not removed after a run in
-     # order to leave the files for review. If the directory exist, but you are
-     # not in debug more, it means that another thread is already setting up
-     # the stream - in this case abort!
+     # order to leave the files for review. If the directory already exists,
+     # and you are not in debug more, it means that another thread is already
+     # setting up the same stream - in this case abort!
      # =========================================================================
      - debug: 
          msg: "Current date: {{ ansible_date_time }}"
      # fail: 
-     #   msg: "exit here..."
+     #   msg: "exit here - just for debug..."
      # when: True == True
 
      - set_fact:
@@ -183,6 +206,8 @@
        when: remap_tablespace is defined
      - debug: var=remap_tablespace
 
+     # By default, all scripts will be generated under the /tmp directory.
+     # Deel free to change it to something else for security purposes.
      - set_fact:
          tmp_directory: "/tmp/ans_{{ stream }}"
 
@@ -237,129 +262,153 @@
        when: ansible_hostname == my_source.host.hostname
      - debug: var=source_id
 
+     #- debug: var=gg_source_server
+     #- debug: var=ansible_hostname
+     #- debug: var=gg_target_server
+
+     # Getting the $ORACLE_HOME of the gg_source server first
+     # We are getting the value directly from the variable after executing the
+     # local environemnt script called ogg.env
      - name: Find the source $ORACLE_GG_HOME value
        shell: |
          . $HOME/ogg.env
          echo $ORACLE_GG_HOME
        register: source_oracle_gg_home
-       when: ansible_hostname == my_source.host.hostname
-     - set_fact:
-         source_oracle_gg_home: "{{ source_oracle_gg_home }}"
+       when: ( ansible_hostname == gg_source_server )
+
+     - name: Set fact if prev task succeeded
+       set_fact:
+         source_oracle_gg_home: "{{ source_oracle_gg_home.stdout }}"
+       when: ( ansible_hostname == gg_source_server )
+       #when: source_oracle_gg_home.changed
 
      - name: Find the target $ORACLE_GG_HOME
        shell: |
          . $HOME/ogg.env
          echo $ORACLE_GG_HOME
        register: target_oracle_gg_home
-       when: ansible_hostname == my_target.host.hostname
-     - set_fact:
-         target_oracle_gg_home: "{{ target_oracle_gg_home }}"
+       when: ( ansible_hostname == gg_target_server )
 
-     - name: Show the $ORACLE_GG_HOME variables
-       debug:
-         msg: "src={{ source_oracle_gg_home }}, target={{ target_oracle_gg_home }}"
+     - name: Set fact if prev task succeeded
+       set_fact:
+         target_oracle_gg_home: "{{ target_oracle_gg_home.stdout }}"
+       when: ( ansible_hostname == gg_target_server )
+
+     - debug: var=target_oracle_gg_home
+
+     # name: Show the $ORACLE_GG_HOME variables
+     # debug:
+     #   msg: "src={{ source_oracle_gg_home }}, target={{ target_oracle_gg_home }}"
 
      # =========================================================================
      # Generate the scripts to stop/delete/add/start the replication stream.
      # The scripts will be executed later once all checks are completed.
+     # Modify/Customize the templates in the templates directory if needed.
      # =========================================================================
-     - name: Create script to stop/delete the source extract
+     - name: Create script to stop the source extract
+       template:
+         src:  ggsci_stop_extract.j2
+         dest: "{{ tmp_directory }}//ans_stop_extract.sh"
+         mode: 0700
+       when: ( ansible_hostname == my_source.host.hostname or ansible_hostname == gg_source_server )
+
+     - name: Create script to delete the source extract
        template:
          src:  ggsci_delete_extract.j2
          dest: "{{ tmp_directory }}//ans_delete_extract.sh"
          mode: 0700
-       when: ansible_hostname == my_source.host.hostname
+       when: ( ansible_hostname == my_source.host.hostname or ansible_hostname == gg_source_server )
+
+     - name: Create script to unregister the source extract
+       template:
+         src:  ggsci_unregister_extract.j2
+         dest: "{{ tmp_directory }}//ans_unregister_extract.sh"
+         mode: 0700
+       when: ( ansible_hostname == my_source.host.hostname or ansible_hostname == gg_source_server )
 
      - name: Create script to add new source extract
        template:
          src:  ggsci_add_extract.j2
          dest: "{{ tmp_directory }}/ans_add_extract.sh"
          mode: 0700
-       when: ansible_hostname == my_source.host.hostname
+       when: ( ansible_hostname == my_source.host.hostname or ansible_hostname == gg_source_server )
 
-     - name: Create script to stop/delete the target replicat
+
+     - name: Create script to start new source extract
+       template:
+         src:  ggsci_start_extract.j2
+         dest: "{{ tmp_directory }}/ans_start_extract.sh"
+         mode: 0700
+       when: ( ansible_hostname == my_source.host.hostname or ansible_hostname == gg_source_server )
+
+     - name: Create script to stop the target replicat
+       template:
+         src:  ggsci_stop_replicat.j2
+         dest: "{{ tmp_directory }}/ans_stop_replicat.sh"
+         mode: 0700
+       when: ( ansible_hostname == my_target.host.hostname or ansible_hostname == gg_target_server )
+
+     - name: Create script to delete the target replicat
        template:
          src:  ggsci_delete_replicat.j2
          dest: "{{ tmp_directory }}/ans_delete_replicat.sh"
          mode: 0700
-       when: ansible_hostname == my_target.host.hostname
+       when: ( ansible_hostname == my_target.host.hostname or ansible_hostname == gg_target_server )
 
      - name: Create script to add new target replicat
        template:
          src:  ggsci_add_replicat.j2
          dest: "{{ tmp_directory }}/ans_add_replicat.sh"
          mode: 0700
-       when: ansible_hostname == my_target.host.hostname
+       when: ( ansible_hostname == my_target.host.hostname or ansible_hostname == gg_target_server )
 
-     # =========================================================================
-     # Getting the current SCN number - used during the export for consistency. 
-     # The SCN is then stored in the "current_scn" Ansible accessible variable.
-     # =========================================================================
-     - name: Create script to get current database SCN (source)
+     - name: Create script to start the target replicat
        template:
-         src:  sh_sql_get_scn.j2
-         dest: "{{ tmp_directory }}/ans_sql_get_scn.sh"
+         src:  ggsci_start_replicat.j2
+         dest: "{{ tmp_directory }}/ans_start_replicat.sh"
          mode: 0700
-       when: ansible_hostname == my_source.host.hostname
-
-     - name: Register current SCN by executing the script (source)
-       shell: "{{ tmp_directory }}/ans_sql_get_scn.sh"
-       args:
-         executable: /bin/bash
-       register: current_scn
-       when: ansible_hostname == my_source.host.hostname
-     - set_fact:
-         current_scn: "{{ current_scn | regex_replace(' ','') }}"
-       when: ansible_hostname == my_source.host.hostname
-     - debug:
-         msg: "Current SCN is {{ current_scn }}"
+       when: ( ansible_hostname == my_target.host.hostname or ansible_hostname == gg_target_server )
 
      # =========================================================================
-     # Get the database SYSTEM user password that will be used for the export
+     # Get the database SYSTEM user password that will be used for the export.
+     # We store our passwords in a local file accessible to the oracle user only.
      # =========================================================================
      - name: Find the Oracle System Password
        shell: grep {{ my_source.host.instance_name }} /u01/app/oracle/admin/.orasafe | grep system | awk -F':' '{print $3}'
        args:
          executable: /bin/bash
-       register: system_pwd
+       register: source_system_pwd
        when: ansible_hostname == my_source.host.hostname
-     #- set_fact:
-     #    system_pwd: "{{ system_pwd }}"
+     - set_fact:
+         source_system_pwd: "{{ source_system_pwd }}"
 
      # =========================================================================
-     # Create export scripts for current stream (source)
-     # =========================================================================
-     - name: Create all export files for current stream (1 file per user)
-       template:
-         src:  sh_expdp_stream.j2
-         dest: "{{ tmp_directory }}/ans_export_schemas.sh"
-         mode: 0700
-       when: ansible_hostname == my_source.host.hostname
-
-     # =========================================================================
-     # Get the database SYSTEM user password that will be used for the import
+     # Get the database SYSTEM user password that will be used for the import.
+     # We store our passwords in a local file accessible to the oracle user only.
      # =========================================================================
      - name: get Oracle System Password
        shell: grep {{ my_target.host.instance_name }} /u01/app/oracle/admin/.orasafe | grep system | awk -F':' '{print $3}'
        args:
          executable: /bin/bash
-       register: system_pwd
+       register: target_system_pwd
        when: ansible_hostname == my_target.host.hostname
-     #- set_fact:
-     #    system_pwd: "{{ system_pwd }}"
+     - set_fact:
+         target_system_pwd: "{{ target_system_pwd }}"
 
      # =========================================================================
      # Create import script for current stream (target)
+     # Simply list all the schema in the streams.yml file. Each schema listed
+     # will be exported and replicated.
      # =========================================================================
-     - name: Create the import script to import all users from the stream
+     - name: Create the import script to import all users/schema from the stream
        template:
          src:  sh_impdp_stream.j2
-         dest: "{{ tmp_directory }}/ans_imp_schemas.sh"
+         dest: "{{ tmp_directory }}/ans_import_schemas.sh"
          mode: 0700
        when: ansible_hostname == my_target.host.hostname
 
      # =========================================================================
-     # Create script to purge the schema to import data into.
+     # Create script to purge the schema to import new objects/data into.
      # Drop all objects for that user (target)
      # =========================================================================
      - name: Create the script to purge all schema objects (target)
@@ -369,11 +418,11 @@
          mode: 0700
        when: ansible_hostname == my_target.host.hostname
 
-     # testing run_mode
+     # testing run_mode - to remove after testing
      - name: Testing run_mode
        debug:
          msg: "Testing run_mode"
-       when:
+       when: 
          - run_mode == 'safe'
          - ansible_hostname == my_target.host.hostname
        failed_when: run_mode == 'prod'
@@ -392,95 +441,98 @@
      # GoldenGate parameters files create/backup/replace
      # =========================================================================
      - debug: var=ansible_date_time.date
+     - debug: var=gg_target_server
+     - debug: var=my_source
 
      - name: Create the extract parameter file (source)
        template:
          src:  gg_param_extract.j2
          dest: "{{ tmp_directory }}/{{ gg_stream_info.stream.extract }}.prm"
        when:
-         - ansible_hostname == my_source.host.hostname
+         - ansible_hostname == gg_source_server
 
      - name: Create the data pump parameter file (source)
        template:
          src:  gg_param_dpump.j2
          dest: "{{ tmp_directory }}/{{ gg_stream_info.stream.dpump }}.prm"
        when:
-         - ansible_hostname == my_source.host.hostname
+         - ansible_hostname == gg_source_server
 
      - name: Create the replicat parameter file (target)
        template:
          src:  gg_param_replicat.j2
          dest: "{{ tmp_directory }}/{{ gg_stream_info.stream.replicat }}.prm"
        when:
-         - ansible_hostname == my_target.host.hostname
+         - ansible_hostname == gg_target_server
 
-     - debug: var=source_oracle_gg_home.stdout
-     - debug: var=target_oracle_gg_home.stdout
+     - debug: var=source_oracle_gg_home
+     - debug: var=target_oracle_gg_home
 
      - name: Check if extract parameter file exist (source)
        stat:
-         path: "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.extract }}.prm"
+         path: "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.extract }}.prm"
        register: extract_param_file
-       when: ( ansible_hostname == my_source.host.hostname )
+       when: ( ansible_hostname == gg_source_server )
 
      - name: Check if data pump parameter file exist (source)
        stat:
-         path: "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.dpump }}.prm"
+         path: "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.dpump }}.prm"
        register: dpump_param_file
-       when: ( ansible_hostname == my_source.host.hostname )
+       when: ( ansible_hostname == gg_source_server )
 
      - name: Check if replicat parameter file exist (target)
        stat:
-         path: "{{ target_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.replicat }}.prm"
+         path: "{{ target_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.replicat }}.prm"
        register: replicat_param_file
-       when: ( ansible_hostname == my_target.host.hostname )
+       when: ( ansible_hostname == gg_target_server )
 
      - name: Backup extract.prm file if exist (source)
-       command: cp "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.extract }}.prm" "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.extract }}-{{ ansible_date_time.date }}.bak"
+       command: cp "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.extract }}.prm" "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.extract }}-{{ ansible_date_time.date }}.bak"
        register: backup_extract_param_file
        when:
-         - ansible_hostname == my_source.host.hostname
+         - ansible_hostname == gg_source_server
          - source_oracle_gg_home is defined
          - extract_param_file.stat.exists == True
 
      - name: Backup dpump.prm file if exist (source)
-       command: cp "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.dpump }}.prm" "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.dpump }}-{{ ansible_date_time.date }}.bak"
+       command: cp "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.dpump }}.prm" "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.dpump }}-{{ ansible_date_time.date }}.bak"
        register: backup_dpump_param_file
        when:
-         - ansible_hostname == my_source.host.hostname
+         - ansible_hostname == gg_source_server
          - source_oracle_gg_home is defined
          - dpump_param_file.stat.exists == True
 
      - name: Backup replicat.prm file if exist (target)
-       command: cp "{{ target_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.replicat }}.prm" "{{ target_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.replicat }}-{{ ansible_date_time.date }}.bak"
+       command: cp "{{ target_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.replicat }}.prm" "{{ target_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.replicat }}-{{ ansible_date_time.date }}.bak"
        register: backup_replicat_param_file
        when:
-         - ansible_hostname == my_target.host.hostname
+         - ansible_hostname == gg_target_server
          - target_oracle_gg_home is defined
          - replicat_param_file.stat.exists == True
 
      - name: Create extract parameter file if does not exist (source)
-       command: mv "{{ tmp_directory }}/{{ gg_stream_info.stream.extract }}.prm" "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.extract }}.prm"
+       command: mv "{{ tmp_directory }}/{{ gg_stream_info.stream.extract }}.prm" "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.extract }}.prm"
        when:
-         - ansible_hostname == my_source.host.hostname
+         - ansible_hostname == gg_source_server
          - source_oracle_gg_home is defined
          - extract_param_file.stat.exists == False
      
      - name: Create data pump parameter file if does not exist (source)
-       command: mv "{{ tmp_directory }}/{{ gg_stream_info.stream.dpump }}.prm" "{{ source_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.dpump }}.prm"
+       command: mv "{{ tmp_directory }}/{{ gg_stream_info.stream.dpump }}.prm" "{{ source_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.dpump }}.prm"
        when:
-         - ansible_hostname == my_source.host.hostname
+         - ansible_hostname == gg_source_server
          - source_oracle_gg_home is defined
          - dpump_param_file.stat.exists == False
      
      - name: Create replicat parameter file if does not exist
-       command: mv "{{ tmp_directory }}/{{ gg_stream_info.stream.replicat }}.prm" "{{ target_oracle_gg_home.stdout }}/dirprm/{{ gg_stream_info.stream.replicat }}.prm"
+       command: mv "{{ tmp_directory }}/{{ gg_stream_info.stream.replicat }}.prm" "{{ target_oracle_gg_home }}/dirprm/{{ gg_stream_info.stream.replicat }}.prm"
        when:
-         - ansible_hostname == my_target.host.hostname
+         - ansible_hostname == gg_target_server
          - target_oracle_gg_home is defined
          - replicat_param_file.stat.exists == False
 
      # After import
+     - debug: var=my_target.host.hostname
      # Script to recreate invalid synonyms (after destination import completes)
      - name: Create the script to re-build synonyms (after import)
        template:
@@ -489,10 +541,7 @@
          mode: 0700
        when: ansible_hostname == my_target.host.hostname
 
-     - fail:
-         msg: "Exiting before running any of the scripts..."
-       when: True == True
-
+     
      # =========================================================================
      # Let's do this!!
      # =========================================================================
@@ -507,65 +556,179 @@
      #  8. target  Add new replicat stream and start
      #  9. target  Grant objects to DCA Search if necessary
      # 10. target  Rebuild all invalid synonyms
+
+     #- fail:
+     #    msg: "Stopping before executing scripts"
+     #  when: True==True
+
+     - debug: 
+         msg: "condition: {{ ansible_hostname }} == {{ gg_source_server }} and destroy == {{ destroy }}"
      
-     - name: Stop/Delete existing extracts (source)
-       command: "{{ tmp_directory }}/ans_delete_extract.sh"
+     - name: Stop existing extracts (source)
+       shell: "{{ tmp_directory }}/ans_stop_extract.sh"
        register: output
        when: 
-         - ansible_hostname == my_source.host.hostname
-         - destroy == True
+         - ansible_hostname == gg_source_server
+         - destroy
+       fail_when: "'Successfully logged into database.' not in output.stdout"
+
      - debug: var=output
 
-     - name: Stop/Delete existing replicat (target)
-       command: "{{ tmp_directory }}/ans_delete_replicat.sh"
+     # Pause after stopping extract
+     - pause:
+         seconds: 3
+
+     - name: Delete existing extracts (source)
+       shell: "{{ tmp_directory }}/ans_delete_extract.sh"
        register: output
        when: 
-         - ansible_hostname == my_target.host.hostname
-         - destroy == True
+         - ansible_hostname == gg_source_server
+         - destroy
      - debug: var=output
 
+     # Pause after stopping extract
+     - pause:
+         seconds: 10
+
+     - name: Unregister existing extracts (source)
+       shell: "{{ tmp_directory }}/ans_unregister_extract.sh"
+       register: output
+       when: 
+         - ansible_hostname == gg_source_server
+         - destroy
+     - debug: var=output
+
+     - debug: var=gg_source_server
+     - name: Stop existing replicat (target)
+       shell: "{{ tmp_directory }}/ans_stop_replicat.sh"
+       register: output
+       when: 
+         - ansible_hostname == gg_target_server
+         - destroy
+       fail_when: "'Successfully logged into database.' not in output.stdout"
+     - debug: var=output
+
+     # Pause after stopping replicat
+     - pause:
+         seconds: 3
+
+     - name: Delete existing replicat (target)
+       shell: "{{ tmp_directory }}/ans_delete_replicat.sh"
+       register: output
+       when: 
+         - ansible_hostname == gg_target_server
+         - destroy
+     - debug: var=output
+
+     - debug: var=my_target
      - name: Drop all target objects (target)
-       command: "{{ tmp_directory }}/ans_sh_sql_reset_db_schemas.sh"
+       shell: "{{ tmp_directory }}/ans_sh_sql_reset_db_schemas.sh"
        register: output
        when: 
          - ansible_hostname == my_target.host.hostname
-         - destroy == True
+         - destroy
      - debug: var=output
 
      - name: Add new extract stream (source)
-       command: "{{ tmp_directory }}/ans_add_extract.sh"
+       shell: "{{ tmp_directory }}/ans_add_extract.sh"
        register: output
-       when: ansible_hostname == my_source.host.hostname
+       when: ansible_hostname == gg_source_server
+       failed_when: "' successfully registered with database' not in output.stdout"
+     - debug: var=output
+     - set_fact:
+         current_scn: "{{ output.stdout | regex_search('(?<=successfully registered with database at SCN ).\\w+') }}"
+       when: ansible_hostname == gg_source_server
+
+     - debug: var=current_scn
+       when: ansible_hostname == gg_source_server
+
+     - name: Add replicat
+       shell: "{{ tmp_directory }}/ans_add_replicat.sh"
+       register: output
+       when: ansible_hostname == gg_target_server
+       failed_when: "'REPLICAT (Integrated) added' not in output.stdout"
      - debug: var=output
 
+     - name: Start extract
+       shell: "{{ tmp_directory }}/ans_start_extract.sh"
+       register: output
+       when: ansible_hostname == gg_source_server
+     - debug: var=output
+
+     # =========================================================================
+     # Getting the current SCN number - used during the export for consistency. 
+     # The SCN is then stored in the "current_scn" Ansible accessible variable.
+     # =========================================================================
+     #- name: Create script to get current database SCN (source)
+     #  template:
+     #    src:  sh_sql_get_scn.j2
+     #    dest: "{{ tmp_directory }}/ans_sql_get_scn.sh"
+     #    mode: 0700
+     #  when: ansible_hostname == my_source.host.hostname
+
+     #- name: Register current SCN by executing the script (source)
+     #  shell: "{{ tmp_directory }}/ans_sql_get_scn.sh"
+     #  args:
+     #    executable: /bin/bash
+     #  register: current_scn
+     #  when: ansible_hostname == my_source.host.hostname
+
+     #- set_fact:
+     #    current_scn: "{{ current_scn | regex_replace(' ','') | regex_replace('\n','') | regex_replace('\t','') }}"
+
+     - debug:
+         msg: "Current SCN is {{ hostvars[ my_source.host.hostname ]['current_scn'] }}"
+       when: ansible_hostname == gg_source_server
+
+     #- debug:
+     #    msg: "Current SCN is {{ hostvars[ my_source.host.hostname ]['current_scn'].stdout }}"
+
+     # =========================================================================
+     # Create export scripts for current stream (source)
+     # =========================================================================
+     - name: Create all export files for current stream (1 file per user)
+       template:
+         src:  sh_expdp_stream.j2
+         dest: "{{ tmp_directory }}/ans_export_schemas.sh"
+         mode: 0700
+       when: ansible_hostname == my_source.host.hostname
+
+     # Pause after stopping extract
+     - pause:
+         seconds: 10
+
      - name: Export source schema (source)
-       command: "{{ tmp_directory }}/ans_export_schemas.sh"
+       shell: "{{ tmp_directory }}/ans_export_schemas.sh"
        register: output
        when: ansible_hostname == my_source.host.hostname
+       failed_when: "'successfully completed at' not in output.stderr"
+
      - debug: var=output
 
      - name: Import target schema (target)
-       command: "{{ tmp_directory }}/ans_import_schemas.sh"
+       shell: "{{ tmp_directory }}/ans_import_schemas.sh"
        register: output
        when: ansible_hostname == my_target.host.hostname
-     - debug: var=output
+       #failed_when: ( "'No such file' in output.stderr" )
 
-     - name: Add/Start replicat
-       command: "{{ tmp_directory }}/ans_add_replicat.sh"
-       register: output
-       when: ansible_hostname == my_target.host.hostname
      - debug: var=output
 
      - name: Add missing grants
-       command: "{{ tmp_directory }}/ans_sh_sql_grant_search.sh"
+       shell: "{{ tmp_directory }}/ans_sh_sql_grant_search.sh"
        register: output
        when: ansible_hostname == my_target.host.hostname
      - debug: var=output
 
      - name: Rebuild synonyms
-       command: "{{ tmp_directory }}/ans_sh_sql_rebuild_syns.sh"
+       shell: "{{ tmp_directory }}/ans_sh_sql_rebuild_syns.sh"
        register: output
        when: ansible_hostname == my_target.host.hostname
+     - debug: var=output
+
+     - name: Start replicat
+       shell: "{{ tmp_directory }}/ans_start_replicat.sh"
+       register: output
+       when: ansible_hostname == gg_target_server
      - debug: var=output
 
 
