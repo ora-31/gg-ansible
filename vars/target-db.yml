@@ -1,14 +1,15 @@
 ---
 host:
-  hostname:            dev-cloud87.dbaas.oraclecloud.com
-  instance_name:       OCIDEV1
-  env_script:          ~/oradev.env
+  hostname:            my-target-server.example.com
+  instance_name:       oradest1
+  env_script:          ~/oradest1.env
   dump_directory:      /home/oracle/dumps
   ora_dump_directory:  DBA_DIR
   run_directory:       /tmp
 
 gg_config:
-  username:            gg_admin
-  password:            gg_admin
-
+  server:              my-target-server.example.com
+  oracle_home:         /u01/app/oracle/product/12.2.0/dbhome_2
+  oracle_gg_home:      /u01/app/oracle/product/ggate/12.2.0/gghome_1
+  useridalias          gg_admin
 ...
