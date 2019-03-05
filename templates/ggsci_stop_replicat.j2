@@ -1,12 +1,14 @@
 #!/bin/bash
+# Stop and delete replicat processes
 . ~/ogg.env
-export ORACLE_HOME={{ my_source.gg_config.oracle_home }}
-export ORACLE_GG_HOME={{ source_oracle_gg_home }}
+export ORACLE_HOME={{ my_target.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ target_oracle_gg_home }}
 #export LD_LIBRARY_PATH=/usr/lib:/u01/app/oracle/product/12.2.0/dbhome_2:/u01/app/oracle/product/11.2.0/dbhome_1/lib:$ORACLE_GG_HOME
 export LD_LIBRARY_PATH=/usr/lib:/u01/app/oracle/product/12.2.0/dbhome_2/lib:$ORACLE_GG_HOME
 export PATH=$PATH:$ORACLE_GG_HOME:.
+. {{ my_target.host.env_script}}
 cd $ORACLE_GG_HOME
-ggsci <<EOF
+./ggsci <<EOF
 info all
 
 {% if run_mode == 'safe' %}
@@ -14,12 +16,14 @@ info all
 exit
 {% endif %}
 
+-- Login into the source database
+{% if my_target.gg_config.useridalias %}
+dblogin useridalias {{ my_target.gg_config.useridalias }}
+{% endif %}
+
 {% for item in streams %}
-{% if ( item.stream.suffix == stream ) %}
-register extract {{ item.stream.suffix }}{{ stream }} database
-add extract {{ item.stream.extr }}{{ item.stream.suffix }}, integrated tranlog, begin now
-add exttrail ./dirdat/{{ stream }}, extract {{ item.stream.extr }}{{ stream }}, megabytes {{ item.stream.megabytes }}
-start extract {{ item.stream.extr}}{{ stream }}
+{% if item.stream.suffix == stream %}
+stop replicat {{ item.stream.replicat }}{{ stream }}
 {% endif %}
 {% endfor %}
 exit

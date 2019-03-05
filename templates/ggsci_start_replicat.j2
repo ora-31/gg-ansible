@@ -3,9 +3,11 @@
 . ~/ogg.env
 export ORACLE_HOME={{ my_target.gg_config.oracle_home }}
 export ORACLE_GG_HOME={{ target_oracle_gg_home }}
-export LD_LIBRARY_PATH={{ my_source.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export LD_LIBRARY_PATH={{ my_target.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
 export PATH=$PATH:$ORACLE_GG_HOME:.
+{% if ansible_hostname == my_source.host.hostname %}
 . {{ my_target.host.env_script }}
+{% endif %}
 cd $ORACLE_GG_HOME
 ./ggsci <<EOF
 info all
@@ -14,15 +16,10 @@ info all
 -- Remove this line by setting the 'run_mode' variable in the main playbook
 exit
 {% endif %}
--- Login into the target database
-{% if my_target.gg_config.useridalias %}
-dblogin useridalias {{ my_target.gg_config.useridalias }}
-{% endif %}
 
--- Add a new Replicat process
 {% for item in streams %}
 {% if item.stream.suffix == stream %}
-add replicat {{ item.stream.replicat }}{{ stream }}, integrated, exttrail ./dirdat/{{ stream }}, begin {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+start replicat {{ item.stream.replicat }}{{ stream }}
 {% endif %}
 {% endfor %}
 exit

@@ -31,8 +31,10 @@ ADD SCHEMATRANDATA {{ user }} ALLCOLS
 -- Register the new extract
 register extract {{ item.stream.extract }}{{ stream }} database
 
+--add extract {{ item.stream.extract }}{{ stream }}, integrated tranlog, scn {{ hostvars[ my_source.host.hostname ]['current_scn'].stdout | regex_replace('\t','') | regex_replace('\n','') }}
 add extract {{ item.stream.extract }}{{ stream }}, integrated tranlog, begin {{ ansible_date_time.date }} {{ ansible_date_time.time }}
 add exttrail ./dirdat/{{ stream }}, extract {{ item.stream.extract }}{{ stream }}, megabytes {{ item.stream.megabytes }}
+--alter extract {{ item.stream.extract }}{{ stream }}, scn  {{ hostvars[ my_source.host.hostname ]['current_scn'].stdout | regex_replace(' ','') | regex_replace('\t','') | regex_replace('\n','') }}
 start extract {{ item.stream.extract }}{{ stream }}
 
 {% if item.stream.dpump %}

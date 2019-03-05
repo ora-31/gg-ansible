@@ -2,7 +2,7 @@
 #
 . {{ my_target.host.env_script }}
 
-sqlplus -s system/{{ system_pwd.stdout }} <<EOF
+sqlplus -s system/{{ target_system_pwd.stdout }} <<EOF
 --connect sys as sysdba
 set feedback off
 set lines 250
@@ -11,7 +11,7 @@ set pages 0
 spool {{ my_target.host.run_directory }}/ans_rebuild_syns_{{ stream }}.sql
 
 {% for item in streams %}
-{% if item.stream.prefix == stream %}
+{% if item.stream.suffix == stream %}
 prompt spool /tmp/ans_rebuild_syns_{{ stream }}.log
 {% for user in item.stream.users %}
 

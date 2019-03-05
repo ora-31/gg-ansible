@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+. {{ my_source.host.env_script }} > /dev/null
+
+sqlplus -s /nolog <<EOF
+connect sys as sysdba
+col current_scn format 999999999999999
+set echo off
+set lines 200
+set pages 0
+set feedback off
+spool /tmp/cur_ver.log
+select substr(version,1,instr(version,'.',1,2)-1) from v\$instance;
+spool off
+exit
+EOF
+exit 0

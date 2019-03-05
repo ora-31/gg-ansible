@@ -1,0 +1,7 @@
+directory={{ my_source.host.dump_directory }}
+dumpfile={{ my_source.host.name }}_{{ stream }}_{{ my_source.dump_file }}
+full=N
+logfile={{ my_source.host.dump_directory }}:{{ my_source.host.instance_name }}_{{ stream }}_{{ expdp_log_file }}
+flashback_scn={{ current_scn.stdout }}
+exclude=schema:"IN('ISSCOME','APEX_030200','CTXSYS','FLOWS_FILES','GG_ADMIN','MDSYS','OLAPSYS','ORACLE_OCM','ORDDATA','ORDSYS','OUTLN','OWBSYS','SCOME','WMSYS','XDB','SYS','SYSTEM')"
+

@@ -4,20 +4,19 @@
 . {{ my_target.host.env_script }}
 
 {% for item in streams %}
-{% if item.stream.prefix == stream %} 
+{% if item.stream.suffix == stream %} 
 {% for user in item.stream.users %}
-impdp system/{{ system_pwd.stdout }} \
+impdp system/{{ target_system_pwd.stdout }} \
  directory={{ my_target.host.ora_dump_directory }} \
- dumpfile=expdp_{{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.dmp \
+ dumpfile={{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.dmp \
 {% if remap_tablespace is defined %}
  remap_tablespace={{ remap_tablespace }} \
 {% endif %}
  exclude=statistics \
- logtime=all \
  transform=disable_archive_logging:Y \
- logfile=impdp_{{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.log
+ logfile=i_{{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.log
 {% endfor %}
 {% endif %}
 {% endfor %}
 
-exit
+exit 0

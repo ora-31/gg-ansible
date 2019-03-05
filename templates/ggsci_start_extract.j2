@@ -1,7 +1,13 @@
 #!/bin/bash
 # Create GG source processes
 . ~/ogg.env
-. {{ my_target.host.env_script }}
+export ORACLE_HOME={{ my_source.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ source_oracle_gg_home }}
+export LD_LIBRARY_PATH={{ my_source.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export PATH=$PATH:$ORACLE_GG_HOME:.
+{% if ansible_hostname == my_source.host.hostname %}
+. {{ my_source.host.env_script }}
+{% endif %}
 cd $ORACLE_GG_HOME
 ./ggsci <<EOF
 info all
@@ -11,10 +17,27 @@ info all
 exit
 {% endif %}
 
+-- Login into the source database
+{% if my_source.gg_config.useridalias %}
+dblogin useridalias {{ my_source.gg_config.useridalias }}
+{% endif %}
+
 {% for item in streams %}
+{% if item.stream.suffix == stream %}
 start extract {{ item.stream.extract }}{{ stream }}
 {% if item.stream.dpump is defined %}
 start extract {{ item.stream.dpump }}{{ stream }}
+
+-- Adding Sequence flush
+{% for user in item.stream.users %}
+FLUSH SEQUENCE {{ user }}.*
+{% endfor %}
+
+{% endif %}
 {% endif %}
 {% endfor %}
 
+
+exit
+EOF
+exit 0

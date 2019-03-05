@@ -2,6 +2,11 @@
 #
 # Script to create the Golden Gate User
 . ~/ogg.env
+export ORACLE_HOME={{ my_source.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ source_oracle_gg_home }}
+export LD_LIBRARY_PATH={{ my_source.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export PATH=$PATH:$ORACLE_GG_HOME:.
+
 . {{ my_source.host.env_script }}
 #
 # Change current directory to the GoldenGate Home directory

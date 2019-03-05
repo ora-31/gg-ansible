@@ -1,6 +1,6 @@
 {% if ( stream ) %}
 {% for item in streams %}
-{% if ( item.stream.prefix == stream ) %}
+{% if ( item.stream.suffix == stream ) %}
 echo "{ \"stream\": {"
 {% if ( item.stream.extract ) %}
 echo " \"extract\":\"{{ item.stream.extract }}{{ stream }}\", "

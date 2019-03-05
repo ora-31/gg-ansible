@@ -1,7 +1,11 @@
 #!/bin/bash
 # Stop and delete replicat processes
 . ~/ogg.env
-. {{ my_target.host.env_script }}
+export ORACLE_HOME={{ my_target.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ target_oracle_gg_home }}
+export LD_LIBRARY_PATH={{ my_target.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export PATH=$PATH:$ORACLE_GG_HOME:.
+. {{ my_target.host.env_script}}
 cd $ORACLE_GG_HOME
 ./ggsci <<EOF
 info all
@@ -11,9 +15,13 @@ info all
 exit
 {% endif %}
 
-dblogin userid {{ my_target.gg_config.username }} password {{ my_target.gg_config.password }}
+-- Login into the target database
+{% if my_target.gg_config.useridalias %}
+dblogin useridalias {{ my_target.gg_config.useridalias }}
+{% endif %}
+
 {% for item in streams %}
-{% if item.stream.prefix == stream %}
+{% if item.stream.suffix == stream %}
 stop replicat {{ item.stream.replicat }}{{ stream }}
 delete replicat {{ item.stream.replicat }}{{ stream }}
 {% endif %}
@@ -23,8 +31,21 @@ exit
 
 rm ./dirdat/{{ stream }}*
 {% for item in streams%}
-{% if item.stream.prefix == stream %}
+{% if item.stream.suffix == stream %}
 rm ./dirrpt/{{ item.stream.replicat }}{{ stream }}*.rpt
 {% endif %}
 {% endfor %}
 exit
+EOF
+
+{% for item in streams %}
+{% if item.stream.suffix == stream %}
+rm ./dirdat/{{ stream }}*
+rm ./dirrpt/{{ item.stream.replicat }}{{ item.stream.suffix }}*.rpt
+rm ./dirchk/{{ item.stream.replicat }}{{ item.stream.suffix }}*.cp*
+rm ./dirpcs/{{ item.stream.replicat }}{{ item.stream.suffix }}*.pc*
+rm ./dirdmp/*{{ item.stream.replicat }}{{ item.stream.suffix }}*.dmp
+{% endif %}
+{% endfor %}
+
+exit 0

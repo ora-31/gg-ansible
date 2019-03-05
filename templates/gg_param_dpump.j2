@@ -1,16 +1,18 @@
+-- Parameter file for a Goldengate Data Pump repository
 {% for item in streams %}
-{% if ( item.stream.prefix == stream ) %}
+{% if ( item.stream.suffix == stream ) %}
 {% if ( item.stream.dpump is defined ) %}
 EXTRACT {{ item.stream.dpump }}{{ stream }}
-SETENV (ORACLE_HOME={{ source_oracle_gg_home.stdout }})
-USERID {{ my_source.gg_config.username }} PASSWORD {{ my_source.gg_config.password }}
-RMTHOST (( my_target.hostname }}, MGRPORT 7809
+SETENV (ORACLE_HOME={{ my_source.gg_config.oracle_home }})
+USERIDALIAS {{ my_source.gg_config.useridalias }}
+RMTHOST {{ gg_target_server }}, MGRPORT 7809
 RMTTRAIL ./dirdat/{{ stream }}
 
 -- MAPPINGS --
 {% if item.stream.users is defined %}
 {% for map in item.stream.users %}
-MAP {{ map }}.*, TARGET {{ map }}.*;
+TABLE {{ map }}.*;
+SEQUENCE {{ map }}.*;
 {% endfor %}
 {% endif %}
 {% endif %}

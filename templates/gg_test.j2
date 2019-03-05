@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+. {{ my_source.host.env_script }}
+#
+#
+$ORACLE_HOME/bin/sqlplus -s /nolog
+rem  This is a test
+--
+connect system/Gl7agldev
+--
+col gg_user new_value gg_user
+prompt "This is a test of prompting input from SQL*Plus with Ansible"
+prompt ""
+accept gg_user prompt 'Enter Oracle GoldenGate user name:'
+prompt
+
+
+--SET termout OFF
+SET verify ON
+SET feedback ON
+SET ECHO ON
+spool /tmp/gg_test.log
+select count(*) from dba_users where username = upper(trim('&gg_user'));
+--
+prompt Script completed
+spool off

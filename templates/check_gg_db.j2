@@ -1,0 +1,130 @@
+spool /tmp/check_gg_db.log
+
+whenever SQLERROR exit SQL.SQLCODE
+whenever OSERROR exit 9;
+
+connect sys as sysdba
+
+set term on
+set serveroutput on size 1000000
+
+declare
+  v_sql             varchar2(1024);
+  v_tmp             varchar2(32);
+  v_db_name         v$database.name%type;
+  v_supp_log        v$database.supplemental_log_data_min%type;
+  v_force_log       v$database.force_logging%type;
+
+  b_switch          boolean := false;
+  b_failure         boolean := false;
+
+  e_no_gg_user      exception;
+  e_prod_db         exception;
+  pragma            exception_init(e_no_gg_user, -20001);
+  pragma            exception_init(e_prod_db, -20099);
+
+  procedure say(p_text in varchar2) is
+  begin
+    dbms_output.put_line(to_char(sysdate,'DD-MON-YY HH24:MI:SS')||' '||p_text);
+  end;
+
+begin
+
+  say('check_gg_db script started...');
+  v_tmp := upper('{{ db_config.name }}');
+  select name
+    into v_tmp
+    from v$database
+   where name = v_tmp;
+
+  select upper(supplemental_log_data_min)
+       , upper(force_logging)
+    into v_supp_log
+       , v_force_log
+    from v$database;
+
+  if ( v_supp_log != 'YES' ) then
+    execute immediate 'alter database add supplemental log data';
+    b_switch := true;
+    say('database altered with supplemental log data');
+  else
+    say('database already configured with supplemental log data');
+  end if;
+
+  if ( v_force_log != 'YES' ) then
+    execute immediate 'alter database force logging;';
+    b_switch := true;
+    say('database altered with force logging');
+  else
+    say('database already configured with force logging');
+  end if;
+  
+  if ( b_switch ) then
+    execute immediate 'alter system switch logfile';
+    say('logfile switched!');
+  end if;
+
+  begin
+    select username
+      into v_tmp
+      from dba_users
+     where username = upper('{{ gg_config.username }}');
+
+    say('found GoldenGate user: '|| v_tmp);
+    say('check grants...');
+    for rec in ( select role_name, granted_role
+                   from ( select role_name, drp.granted_role
+                            from dba_role_privs drp
+                               , ( select 'SELECT_CATALOG_ROLE' as role_name from dual
+                                   union select 'DBA' as role_name from dual
+                                   union select 'CONNECT' as role_name from dual
+                                   union select 'RESOURCE' as role_name from dual
+                                   union select 'GGS_GGSUSER_ROLE' as role_name from dual ) roles
+                             where drp.grantee(+) = v_tmp
+                               and drp.granted_role(+) = roles.role_name )
+                  where granted_role is null )
+    loop
+      execute immediate 'grant '|| rec.role_name ||' to '|| v_tmp;
+      say('granted missing role '|| rec.role_name ||' to GG user '|| v_tmp);
+    end loop;
+
+  exception
+    when no_data_found then
+      --* GoldenGate user not found, create it
+      v_sql := 'create user {{ gg_config.username }} identified by {{ gg_config.password }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+      --* grant roles to newly created user
+      v_sql := 'grant connect, resource, create session, alter session to {{ gg_config.username }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+      v_sql := 'grant select any dictionary, select any table, create table to {{ gg_config.username }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+      v_sql := 'grant alter any table to {{ gg_config.username }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+      v_sql := 'grant execute on utl_file to {{ gg_config.username }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+      v_sql := 'grant flashback any table to {{ gg_config.username }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+      v_sql := 'grant execute on dbms_flashback to {{ gg_config.username }}';
+      say(v_sql);
+      execute immediate v_sql;
+
+  end;
+
+  say('check completed');
+
+end;
+/
+
+spool off

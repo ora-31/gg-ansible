@@ -3,7 +3,7 @@
 . {{ my_target.host.env_script }}
 cd {{ my_target.host.run_directory }}
 
-sqlplus -s system/{{ system_pwd.stdout }} <<EOF
+sqlplus -s system/{{ target_system_pwd.stdout }} <<EOF
 --connect sys as sysdba
 set feedback off
 set lines 250
@@ -12,7 +12,7 @@ set pages 0
 spool sql_reset_db_schema_{{ stream }}.sql
 
 {% for item in streams %}
-{% if item.stream.prefix == stream %}
+{% if item.stream.suffix == stream %}
 prompt spool /tmp/ans_reset_{{ stream }}.log
 {% for user in item.stream.users %}
 
@@ -27,6 +27,7 @@ prompt prompt Drop objects for {{ user }}
 select 'drop '||object_type||' '||owner||'.'||object_name||';'
   from dba_objects
  where owner in ( '{{ user }}' )
+   and ( object_type not like 'LOB%' and object_type not like '%PARTITION%' )
  order by owner, object_name;
 
 {% endfor %}
@@ -44,11 +45,15 @@ spool off
 set feed on
 set timing on
 
+prompt 'Execute the purge script'
 @{{ my_target.host.run_directory }}/sql_reset_db_schema_{{ stream }}.sql
+
+prompt 'Purge Recyclebin'
 purge recyclebin;
 
-EOF
+select 'TABLES='||count(*) from user_tables;
 
 exit
+EOF
 
-
+exit 0

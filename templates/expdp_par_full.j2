@@ -1,0 +1,9 @@
+directory={{ db_config.dump_directory }}
+dumpfile={{ db_config.dump_file }}
+full=Y
+logfile={{ db_config.dump_directory }}:{{ db_config.expdp_log_file }}
+flashback_scn={{ current_scn.stdout }}
+consistent=y
+exclude=schema:"IN('ISSCOME','APEX_030200','CTXSYS','FLOWS_FILES','GG_ADMIN','MDSYS','OLAPSYS','ORACLE_OCM','ORDDATA','ORDSYS','OUTLN','OWBSYS','SCOME','WMSYS','XDB','SYS','SYSTEM')"
+tables=WL_PARAMS
+

@@ -1,15 +1,22 @@
+-- Parameter file for a GoldenGate Replicat process
 {% for item in streams %}
-{% if ( item.stream.prefix == stream ) %}
+{% if ( item.stream.suffix == stream ) %}
 REPLICAT {{ item.stream.replicat }}{{ stream }}
 --NODISCARDFILE
 DISCARDFILE ./dirdsc/{{ item.stream.replicat }}{{ stream }}.dsc
-SETENV (ORACLE_HOME={{ target_oracle_gg_home.stdout }})
-USERID {{ my_target.gg_config.username }} PASSWORD {{ my_target.gg_config.password }}
+SETENV (ORACLE_HOME={{ my_target.gg_config.oracle_home }})
+USERIDALIAS {{ my_target.gg_config.useridalias }}
 ASSUMETARGETDEFS
 HANDLECOLLISIONS
 DDL INCLUDE ALL
 --
-DBOPTIONS INTEGRATEDPARAMS (_DATA_LAYER N)
+--DBOPTIONS INTEGRATEDPARAMS (_DATA_LAYER N)
+-- List of Oracle exceptions to ignore/disable
+-- By uncommenting any of these error code, the Replicat process will simply
+-- ignore the exception and continue. If not, the process will abend and the
+-- replication will stop.
+-- Be careful - by ignoring or skipping on important exceptions, your data may
+-- become corrupt over time.
 --REPERROR (2291, DISCARD)
 --DDLERROR 942 IGNORE     -- table to drop does not exist (BIN table for example)
 --DDLERROR 1720 IGNORE    -- grant option does not exist

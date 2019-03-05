@@ -3,16 +3,17 @@
 # Exports all schema for a particular stream
 . {{ my_source.host.env_script }}
 
-SCN={{ current_scn.stdout| regex_replace('\n','') }}
+SCN={{ hostvars[ my_source.host.hostname ]['current_scn'] | regex_replace(' ','') | regex_replace('\n','') | regex_replace('\t','') }}
 
 {% for item in streams %}
-{% if item.stream.prefix == stream %} 
+{% if item.stream.suffix == stream %} 
 {% for user in item.stream.users %}
-expdp system/{{ system_pwd.stdout }} \
+expdp system/{{ source_system_pwd.stdout }} \
  schemas={{ user }} \
  directory={{ my_source.host.ora_dump_directory }} \
- dumpfile=expdp_{{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.dmp \
- logfile=expdp_{{ my_source.host.instance_name }}_{{ stream }}.log \
+ dumpfile={{ my_source.host.instance_name }}_{{ stream }}_{{ user }}.dmp \
+ logfile=e_{{ my_source.host.instance_name }}_{{ stream }}.log \
+ reuse_dumpfiles=Y \
  flashback_scn=$SCN
 {% endfor %}
 {% endif %}

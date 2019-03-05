@@ -1,6 +1,10 @@
-# #!/bin/bash
+#!/bin/bash
 # Kill source processes
 . ~/ogg.env
+export ORACLE_HOME={{ my_source.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ source_oracle_gg_home }}
+export LD_LIBRARY_PATH={{ my_source.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export PATH=$PATH:$ORACLE_GG_HOME:.
 . {{ my_source.host.env_script }}
 cd $ORACLE_GG_HOME
 ./ggsci <<EOF
@@ -11,35 +15,39 @@ info all
 exit
 {% endif %}
 
-dblogin userid {{ my_source.gg_config.username }} password {{ my_source.gg_config.password }}
-{% for item in streams %}
-{% if item.stream.prefix == stream %}
-stop extract {{ item.stream.extract }}{{ item.stream.prefix }}
-delete extract {{ item.stream.extract }}{{ item.stream.prefix }}
-{% if item.stream.dpump %}
-stop extract {{ item.stream.dpump }}{{ item.stream.prefix }}
-delete extract {{ item.stream.dpump }}{{ item.stream.prefix }}
+-- Login into the source database
+{% if my_source.gg_config.useridalias %}
+dblogin useridalias {{ my_source.gg_config.useridalias }}
 {% endif %}
-unregister extract {{ item.stream.extract }}{{ item.stream.prefix }} database
+
+
+{% for item in streams %}
+{% if item.stream.suffix == stream %}
+-- delete the extracts
+delete extract {{ item.stream.extract }}{{ item.stream.suffix }}
+{% if item.stream.dpump %}
+-- delete the extracts
+delete extract {{ item.stream.dpump }}{{ item.stream.suffix }}
+{% endif %}
 {% endif %}
 {% endfor %}
 
 exit
+EOF
 
 rm ./dirdat/{{ stream }}*
 {% for item in streams %}
-{% if item.stream.prefix == stream %}
-rm ./dirrpt/{{ item.stream.extract }}{{ item.stream.prefix }}*.rpt
-rm ./dirchk/{{ item.stream.extract }}{{ item.stream.prefix }}*.cp*
-rm ./dirpcs/{{ item.stream.extract }}{{ item.stream.prefix }}*.pc*
-rm ./dirdmp/*{{ item.stream.extract }}{{ item.stream.prefix }}*.dmp
+{% if item.stream.suffix == stream %}
+rm ./dirrpt/{{ item.stream.extract }}{{ item.stream.suffix }}*.rpt
+rm ./dirchk/{{ item.stream.extract }}{{ item.stream.suffix }}*.cp*
+rm ./dirpcs/{{ item.stream.extract }}{{ item.stream.suffix }}*.pc*
+rm ./dirdmp/*{{ item.stream.extract }}{{ item.stream.suffix }}*.dmp
 {% if item.stream.dpump %}
-rm ./dirrpt/{{ item.stream.dpump }}{{ item.stream.prefix }}*.rpt
-rm ./dirchk/{{ item.stream.dpump }}{{ item.stream.prefix }}*.cp*
-rm ./dirpcs/{{ item.stream.dpump }}{{ item.stream.prefix }}*.pc*
-rm ./dirdmp/*{{ item.stream.dpump }}{{ item.stream.prefix }}*.dmp
+rm ./dirrpt/{{ item.stream.dpump }}{{ item.stream.suffix }}*.rpt
+rm ./dirchk/{{ item.stream.dpump }}{{ item.stream.suffix }}*.cp*
+rm ./dirpcs/{{ item.stream.dpump }}{{ item.stream.suffix }}*.pc*
+rm ./dirdmp/*{{ item.stream.dpump }}{{ item.stream.suffix }}*.dmp
 {% endif %}
 {% endif %}
 {% endfor %}
-exit
-
+exit 0

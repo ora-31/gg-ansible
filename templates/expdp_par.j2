@@ -1,0 +1,8 @@
+directory={{ db_config.dump_directory }}
+dumpfile={{ db_config.dump_file }}
+full=N
+logfile={{ db_config.dump_directory }}:{{ db_config.expdp_log_file }}
+flashback_scn={{ current_scn.stdout }}
+filesize=4294967296
+tables=ENV61_AGI.WL_PARAMS
+

@@ -1,0 +1,5 @@
+#!/bin/bash
+. ~/{{ my_source.host.env_script }}
+
+expdp system/{{ source_system_pwd.stdout }} parfile=/tmp/expdp_{{ my_source.instance_name }}.par
+

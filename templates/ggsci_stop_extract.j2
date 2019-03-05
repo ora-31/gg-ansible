@@ -1,21 +1,36 @@
+#!/bin/bash
 # Stop EXTRxx/DPUMPxx processes
-. ~/ogg.env
+set -x
+$HOME/ogg.env
+export ORACLE_HOME={{ my_source.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ source_oracle_gg_home }}
+export LD_LIBRARY_PATH={{ my_source.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export PATH=$PATH:$ORACLE_GG_HOME:.
+{% if ansible_hostname == my_source.host.hostname %}
 . {{ my_source.host.env_script }}
+{% endif %}
+echo $ORACLE_GG_HOME
 cd $ORACLE_GG_HOME
-./ggsci <<EOF
+pwd
+#id
+ggsci <<EOF
 info all
-
-{% if run_mode == 'safe' %}
+{% if run_mode == 'safe' -%}
 -- Remove this line by setting the 'run_mode' variable in the main playbook
 exit
-{% endif %}
-
-dblogin userid {{ my_source.gg_config.username }} password {{ my_source.gg_config.password }}
-{% for item in streams %}
-{% if item.stream.prefix == stream %}
-stop extract {{ item.stream.extract }}{{ item.stream.stream }}
-{% if item.stream.dpump %}
-stop extract {{ item.stream.dpump }}{{ stream }}
-{% endif %}
-{% endif %}
-{% endfor %}
+{% endif -%}
+-- Login into the source database
+{% if my_source.gg_config.useridalias -%}
+dblogin useridalias {{ my_source.gg_config.useridalias }}
+{% endif -%}
+{% for item in streams -%}
+{% if item.stream.suffix == stream -%}
+stop extract {{ item.stream.extract }}{{ item.stream.suffix }}
+{% if item.stream.dpump -%}
+stop extract {{ item.stream.dpump }}{{ item.stream.suffix }}
+{% endif -%}
+{% endif -%}
+{% endfor -%}
+exit
+EOF
+exit 0
