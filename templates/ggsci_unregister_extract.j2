@@ -1,0 +1,33 @@
+#!/bin/bash
+# Stop EXTRxx/DPUMPxx processes
+set -x
+$HOME/ogg.env
+export ORACLE_HOME={{ my_source.gg_config.oracle_home }}
+export ORACLE_GG_HOME={{ source_oracle_gg_home }}
+export LD_LIBRARY_PATH={{ my_source.gg_config.oracle_home }}/lib:$ORACLE_GG_HOME:.
+export PATH=$PATH:$ORACLE_GG_HOME:.
+{% if ansible_hostname == my_source.host.hostname %}
+. {{ my_source.host.env_script }}
+{% endif %}
+echo $ORACLE_GG_HOME
+cd $ORACLE_GG_HOME
+pwd
+#id
+ggsci <<EOF
+info all
+{% if run_mode == 'safe' -%}
+-- Remove this line by setting the 'run_mode' variable in the main playbook
+exit
+{% endif -%}
+-- Login into the source database
+{% if my_source.gg_config.useridalias -%}
+dblogin useridalias {{ my_source.gg_config.useridalias }}
+{% endif -%}
+{% for item in streams -%}
+{% if item.stream.suffix == stream -%}
+unregister extract {{ item.stream.extract }}{{ item.stream.suffix }} database
+{% endif -%}
+{% endfor -%}
+exit
+EOF
+exit 0
