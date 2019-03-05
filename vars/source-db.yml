@@ -1,13 +1,15 @@
 ---
 host:
-  hostname:            dev-db01.interbal.example.com
-  instance_name:       SRCDB
-  env_script:          ~/oradev.env
+  hostname:            my-source-server.example.com
+  instance_name:       orasrc
+  env_script:          ~/orasrc.env
   dump_directory:      /home/oracle/dumps
-  ora_dump_directory:  DBA_DIR
+  ora_dump_directory:  GG_DUMPS
   run_directory:       /tmp
 
 gg_config:
-  username:            gg_admin
-  password:            gg_admin
+  server:              my-source-server.example.com
+  useridalias:         gg_admin
+  oracle_home:         /u01/app/oracle/product/12.2.0/dbhome_1
+  oracle_gg_home:      /u01/app/oracle/product/ggate/12.2.0/gghome_1
 ...
