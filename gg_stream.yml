@@ -6,9 +6,21 @@
    # Date:              January 2019
    # Name:              gg_stream2.yml
    #
-   # This Playbook is used to create a new GoldenGate replication stream
+   # This Playbook is designed to create a new GoldenGate replication stream
    # (Extract+Replicat) between a source instance (Oracle) and a target instance
    # (Oracle only). It will save you from performing all the steps manually.
+   #
+   # Disclaimer
+   # ----------
+   # The use of this script assumes that you are already familiar with Oracle,
+   # Oracle GoldenGate, ansible, and how to setup a unidirectional replication
+   # manually. This script is flexible, but comes at a cost of more configurable
+   # items.
+   #
+   # The author is not responsible for data loss at the source or target if the
+   # use of this script is not properly understood or configured for your own
+   # environment. Make sure to test this script thoroughly on your end and use
+   # it at your own risks.
    #
    # This script can be used for direct replication or using a hub architecture
    # with a middle host running GoldenGate.
@@ -24,48 +36,65 @@
    # ------------
    # oracle_hosts       This file contains the various database hosts on which
    #                    the databases and GoldenGate is installed. Define groups
-   #                    with the --limit parameter to only select the two servers
-   #                    necessary (source and target), or three servers in a hub
-   #                    configuration.
+   #                    that only include the source and targer (and optionally
+   #                    a hub server) and select the group on the command line
+   #                    with the --limit parameter. This will only select the two
+   #                    servers necessary (source and target), or three servers in
+   #                    for a hub architecture.
    #
    # streams.yml        This file must contain basic GG information and schemas
-   #                    to replicate.
+   #                    to replicate. Use the template provided and update it with
+   #                    your own parameters.
    #
    # <source>.yml       This file must contain basic information about the
-   #                    source instance. Replicate the <source> name with the
-   #                    actual name of the instance.
+   #                    source instance. Rename the script <source> name with the
+   #                    actual name of the Oracle instance you are referencing.
+   #                    It must match the instance name provided as a source param
+   #                    on the command line when called.
    #
    # <target>.yml       This file must contain basic information about the
-   #                    target instance. Replicate the <target> name with the
-   #                    actual name of the instance.
+   #                    target instance. Rename the script <target> name with the
+   #                    actual name of the Oracle instance you are referencing.
+   #                    It must match the instance name provided as a source param
+   #                    on the command line when called.
    #
    # Mandatory parameters
    # --------------------
-   # Mandatory parameters must be specified on the command line when running the
+   # Mandatory command line parameters must be specified when executing the
    # Playbook using the --extra-vars parameter.
    #
    # source=<source>    Specify the source instance name. The name must have a
-   #                    correspondig <source>.yml file
+   #                    correspondig <source>.yml file. This represents the source
+   #                    instance.
    #
    # target=<target>    Specify the target instance name. The name must have a
-   #                    correspondig <target>.yml file
+   #                    correspondig <target>.yml file. This represents the target
+   #                    instance.
    #
    # stream=xx          Specify a 2 character (alphanumeric) for the stream
-   #                    suffix. GoldenGate only allows for a 2 characters
-   #                    suffix. You must have a corresponding entry in the
+   #                    prefix. GoldenGate only allows for a 2 characters
+   #                    identifier. You must have a corresponding entry in the
    #                    streams.yml configuration file with all information
-   #                    about the stream to create.
+   #                    about the stream to create (names, schema to replicate,
+   #                    etc.).
    #
    # Optional parameters
    # -------------------
    # debug_mode=True    Used to avoid removing all scripts created during the
-   #                    execution
-   # destroy=True       Specify to remove existing replication and target
-   #                    objects
+   #                    execution. Set this parameter to True if you want to
+   #                    review all the scripts generated during the execution
+   #                    of the Playbook.
+   #
+   # destroy=True       Set to True to remove existing replication and target
+   #                    objects. Please note that this option will destroy your
+   #                    existing replication and all the objects on the target
+   #                    instance. Make sure to test this execution in a test
+   #                    environment first. Mis-identification of the source and
+   #                    target may lead to permanent data loss.
    #
    # Example
    # -------
-   # $ ./gg_stream2.yml -i /etc/ansible/oracle_hosts \
+   # $ ./gg_stream.yml -i /etc/ansible/oracle_hosts \
    #   --limit "sandbox" \
    #   --extra-vars "stream=SC source=brztest2 target=cogcss \
    #   debug_mode=true remap_tablespace=TBSP_BRZTEST_ENV21_VR:TBSP_BATMAN \
