@@ -11,7 +11,7 @@ When migrating data from your own data center to a public or private cloud, a ke
 **Parameters Explained**
 `-i inventory_file` An inventory file containing all your source and target hosts (physical hostnames) and groups of hosts
 `--limit "group"` Create a group containing the source and target hosts only
-`extra--vars "name=value,"` A list of name/value pairs used to provide dynamic parameters explained below:
+`--extra-vars "name=value,"` A list of name/value pairs used to provide dynamic parameters explained below:
 
 **extra-vars**
 `stream` Defines the actual stream you want to setup. Streams are defined in the vars/streams.yml file. A stream defines the name of the extract. pump and replicat processes, and also the name of the schema to include (one or many) in the replication.
